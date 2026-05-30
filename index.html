@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Pro Chain Survey - Offline Mobile</title>
+    <title>Pro Chain Survey - Zoom & Draw (Offline)</title>
     <style>
         body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; margin: 0; padding: 0; background-color: #f1f5f9; color: #334155; }
         .header { background-color: #1e293b; color: white; padding: 15px 20px; text-align: center; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); }
@@ -17,29 +17,52 @@
         td { border-bottom: 1px solid #e2e8f0; padding: 8px 4px; }
         input[type="number"], input[type="text"], select { width: 95%; padding: 8px 5px; text-align: center; border: 1px solid #cbd5e1; border-radius: 4px; font-size: 14px; box-sizing: border-box; }
         button { padding: 12px; border: none; border-radius: 6px; font-weight: bold; cursor: pointer; color: white; font-size: 15px; transition: 0.2s; width: 100%; }
+        
         .btn-add { background-color: #3b82f6; margin-top: 10px; }
         .btn-primary { background-color: #10b981; font-size: 18px; padding: 15px; margin-top: 10px;}
         .btn-secondary { background-color: #64748b; width: auto; padding: 10px 15px;}
         .btn-clear { background-color: #ef4444; width: auto; padding: 10px 15px;}
         .btn-img { background-color: #8b5cf6; width: auto; padding: 10px 15px;}
         .btn-pdf { background-color: #f59e0b; width: auto; padding: 10px 15px; color: #000;}
-
-        .toolbar { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; margin-bottom: 15px; gap: 10px; background: white; padding: 10px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.05);}
-        .toolbar-group { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
-        canvas { border: 2px solid #94a3b8; background-color: #ffffff; touch-action: none; cursor: crosshair; width: 100%; height: auto; border-radius: 8px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); }
-        .status-bar { background: #dbeafe; color: #1e40af; padding: 12px; border-radius: 6px; text-align: center; font-weight: bold; margin-bottom: 15px; }
+        .btn-mode { background-color: #2563eb; width: auto; padding: 10px 15px;}
+        
+        .toolbar { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; margin-bottom: 10px; gap: 10px; background: white; padding: 10px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.05);}
+        .toolbar-group { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+        
+        /* Zoom & Pan Container */
+        .canvas-wrapper {
+            width: 100%; 
+            max-height: 65vh; 
+            overflow: auto; 
+            border: 2px solid #94a3b8; 
+            border-radius: 8px; 
+            background: #ffffff;
+            box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1);
+            position: relative;
+        }
+        
+        canvas { 
+            background-color: #ffffff; 
+            touch-action: none; 
+            cursor: crosshair; 
+            width: 100%; /* Will be changed by zoom */
+            height: auto; 
+            display: block;
+            transform-origin: top left;
+        }
+        
+        .status-bar { background: #dbeafe; color: #1e40af; padding: 12px; border-radius: 6px; text-align: center; font-weight: bold; margin-bottom: 15px; font-size: 14px;}
         .result-box { background-color: #d1fae5; color: #065f46; padding: 15px; border-radius: 6px; font-size: 18px; margin-top: 15px; text-align: center; display: none; border: 1px solid #a7f3d0; }
 
-        /* Print Footer (Hidden on screen) */
         .print-footer { display: none; text-align: right; font-size: 10px; color: black; margin-top: 40px; font-style: italic; }
 
-        /* Print Settings for Native Offline PDF */
         @media print {
             body { background: white; padding: 0; margin: 0; }
             .header, .box, .toolbar, .status-bar, .btn-primary, .btn-add { display: none !important; }
             #screen-input { display: none !important; }
             #screen-drawing { display: block !important; }
-            canvas { border: 2px solid black; width: 100%; height: auto; box-shadow: none; margin-top: 20px;}
+            .canvas-wrapper { overflow: visible !important; max-height: none !important; border: none !important; box-shadow: none !important;}
+            canvas { width: 100% !important; border: 2px solid black !important; }
             .result-box { border: 2px solid #000; background: transparent; color: black; margin-top: 20px; font-size: 20px;}
             .print-footer { display: block !important; }
         }
@@ -55,7 +78,6 @@
     <div id="screen-input" class="screen active">
         <div class="box">
             <h3>Step 1: Triangles Framework</h3>
-            <p style="font-size: 13px; color: #64748b; margin-top: 0;">Base Triangle is A-B-C. Connect new points to existing ones.</p>
             <table id="triangleTable">
                 <thead>
                     <tr><th>Line</th><th>New Pt</th><th>Side 1</th><th>Side 2</th><th>Flip</th></tr>
@@ -89,29 +111,44 @@
 
     <!-- ================= SCREEN 2: DRAWING CANVAS ================= -->
     <div id="screen-drawing" class="screen">
+        
+        <!-- Controls for Actions -->
         <div class="toolbar">
             <div class="toolbar-group">
                 <button class="btn-secondary" onclick="switchScreen('screen-input')">⬅️ Back</button>
                 <button class="btn-clear" onclick="clearDrawing()">🧽 Clear</button>
             </div>
             <div class="toolbar-group">
-                <button class="btn-img" onclick="saveAsImage()">🖼️ Save Image</button>
-                <button class="btn-pdf" onclick="saveAsPDF()">📄 Save PDF</button>
+                <button class="btn-img" onclick="saveAsImage()">🖼️ Image</button>
+                <button class="btn-pdf" onclick="saveAsPDF()">📄 PDF</button>
+            </div>
+        </div>
+
+        <!-- NEW: Zoom & Pan Controls -->
+        <div class="toolbar" style="background: #e2e8f0;">
+            <div class="toolbar-group">
+                <button id="btn-mode" class="btn-mode" onclick="toggleMode()">👆 Draw Mode</button>
+            </div>
+            <div class="toolbar-group">
+                <button class="btn-secondary" onclick="zoomOut()">🔍 ➖</button>
+                <span id="zoomText" style="font-weight:bold; width: 45px; text-align:center;">100%</span>
+                <button class="btn-secondary" onclick="zoomIn()">🔍 ➕</button>
             </div>
         </div>
 
         <div id="statusMsg" class="status-bar">
-            Touch/Drag points to draw outer boundary. Use the magnifier to snap accurately!
+            Touch points to draw. Use 'Move Mode' to scroll around if zoomed in.
         </div>
         
-        <!-- Setting a very high internal resolution for high quality image/pdf export -->
-        <canvas id="surveyCanvas" width="1200" height="1200"></canvas>
+        <!-- Scrollable Wrapper -->
+        <div class="canvas-wrapper" id="canvasWrapper">
+            <canvas id="surveyCanvas" width="1200" height="1200"></canvas>
+        </div>
         
         <div id="results" class="result-box">
             <b>Total Area:</b> <br><span id="areaSqm">0</span> Sq.m | <b><span id="areaCent">0</span> Cents</b>
         </div>
 
-        <!-- This footer will only be visible in the PDF / Printout -->
         <div class="print-footer">
             Muraleedharan P 9400849115
         </div>
@@ -127,8 +164,12 @@
         let snapPoints = []; 
         let drawnPath = []; 
         let currentMousePos = { x: 0, y: 0 };
-        const snapDistance = 60; 
+        const snapDistance = 50; 
         let isTouching = false; 
+
+        // Zoom & Pan States
+        let currentZoom = 100;
+        let isPanMode = false;
 
         addOffsetRow('A', 'B', '', 5, '10');
         addOffsetRow('A', 'B', '12', 20, '');
@@ -138,6 +179,39 @@
             document.getElementById(screenId).classList.add('active');
             window.scrollTo(0, 0);
         }
+
+        // ================= ZOOM & PAN LOGIC =================
+        function zoomIn() {
+            currentZoom += 50;
+            updateZoom();
+        }
+
+        function zoomOut() {
+            currentZoom = Math.max(100, currentZoom - 50); // Minimum 100%
+            updateZoom();
+        }
+
+        function updateZoom() {
+            canvas.style.width = currentZoom + '%';
+            document.getElementById('zoomText').innerText = currentZoom + '%';
+        }
+
+        function toggleMode() {
+            isPanMode = !isPanMode;
+            const btn = document.getElementById('btn-mode');
+            if(isPanMode) {
+                btn.innerHTML = "✋ Move Mode";
+                btn.style.backgroundColor = "#8b5cf6"; // Purple color for move
+                canvas.style.touchAction = "auto"; // Allows native phone scrolling
+                document.getElementById('statusMsg').innerText = "Move Mode: Swipe to scroll the paper.";
+            } else {
+                btn.innerHTML = "👆 Draw Mode";
+                btn.style.backgroundColor = "#2563eb"; // Blue color for draw
+                canvas.style.touchAction = "none"; // Blocks scrolling, captures touch for drawing
+                document.getElementById('statusMsg').innerText = "Draw Mode: Touch points to draw boundaries.";
+            }
+        }
+        // ====================================================
 
         function addTriangleRow() {
             let nodes = ['A', 'B', 'C'];
@@ -247,8 +321,16 @@
             }));
 
             switchScreen('screen-drawing');
+            
+            // Auto switch to DRAW mode on load
+            if(isPanMode) toggleMode(); 
+            
             document.getElementById('statusMsg').innerText = "Points Generated! Touch points to draw the outerline.";
             document.getElementById('statusMsg').style.background = "#dbeafe";
+            
+            // Reset zoom
+            currentZoom = 100;
+            updateZoom();
             renderCanvas();
         }
 
@@ -302,32 +384,6 @@
                 ctx.fillStyle = "rgba(16, 185, 129, 0.5)";
                 ctx.beginPath(); ctx.arc(sp.cx, sp.cy, 25, 0, Math.PI*2); ctx.fill();
             }
-
-            // MAGNIFIER (Zoom Lens)
-            if (isTouching && currentMousePos.x > 0 && !isPathClosed()) {
-                ctx.save();
-                let magSize = 250; 
-                let zoomLevel = 2; 
-                let magX = currentMousePos.x - magSize/1.1; 
-                let magY = currentMousePos.y - magSize/1.1;
-                if(magX < magSize/2) magX = magSize/2 + 20;
-                if(magY < magSize/2) magY = magSize/2 + 20;
-
-                ctx.beginPath(); ctx.arc(magX, magY, magSize/2, 0, Math.PI*2);
-                ctx.lineWidth = 6; ctx.strokeStyle = "#1e293b"; ctx.stroke(); ctx.clip(); 
-                ctx.fillStyle = "white"; ctx.fill();
-                
-                let srcX = currentMousePos.x - (magSize / (2 * zoomLevel));
-                let srcY = currentMousePos.y - (magSize / (2 * zoomLevel));
-                
-                ctx.drawImage(canvas, srcX, srcY, magSize/zoomLevel, magSize/zoomLevel, magX - magSize/2, magY - magSize/2, magSize, magSize);
-                
-                ctx.beginPath();
-                ctx.moveTo(magX - 15, magY); ctx.lineTo(magX + 15, magY);
-                ctx.moveTo(magX, magY - 15); ctx.lineTo(magX, magY + 15);
-                ctx.strokeStyle = "rgba(239, 68, 68, 0.8)"; ctx.lineWidth = 4; ctx.stroke();
-                ctx.restore();
-            }
         }
 
         function isPathClosed() { return drawnPath.length > 2 && drawnPath[0].cx === drawnPath[drawnPath.length-1].cx; }
@@ -336,6 +392,7 @@
         function handleMove(x, y) {
             if(document.getElementById('screen-drawing').classList.contains('active')) {
                 const rect = canvas.getBoundingClientRect();
+                // Logic automatically accounts for current zoom CSS styling
                 currentMousePos.x = (x - rect.left) * (canvas.width / rect.width);
                 currentMousePos.y = (y - rect.top) * (canvas.height / rect.height);
                 let sp = getSnappedPoint(currentMousePos.x, currentMousePos.y);
@@ -357,14 +414,34 @@
             }
         }
 
-        canvas.addEventListener('mousedown', (e) => { isTouching = true; handleMove(e.clientX, e.clientY); });
-        canvas.addEventListener('mousemove', (e) => { if(isTouching) handleMove(e.clientX, e.clientY); });
-        canvas.addEventListener('mouseup', (e) => { handleTap(); isTouching = false; renderCanvas(); });
+        canvas.addEventListener('mousedown', (e) => { 
+            if(isPanMode) return;
+            isTouching = true; handleMove(e.clientX, e.clientY); 
+        });
+        canvas.addEventListener('mousemove', (e) => { 
+            if(isPanMode) return;
+            if(isTouching) handleMove(e.clientX, e.clientY); 
+        });
+        canvas.addEventListener('mouseup', (e) => { 
+            if(isPanMode) return;
+            handleTap(); isTouching = false; renderCanvas(); 
+        });
         canvas.addEventListener('mouseleave', () => { isTouching = false; renderCanvas(); });
 
-        canvas.addEventListener('touchstart', (e) => { e.preventDefault(); isTouching = true; handleMove(e.touches[0].clientX, e.touches[0].clientY); }, {passive: false});
-        canvas.addEventListener('touchmove', (e) => { e.preventDefault(); handleMove(e.touches[0].clientX, e.touches[0].clientY); }, {passive: false});
-        canvas.addEventListener('touchend', (e) => { e.preventDefault(); handleTap(); isTouching = false; renderCanvas(); });
+        canvas.addEventListener('touchstart', (e) => { 
+            if(isPanMode) return; // Allow native scroll
+            e.preventDefault(); isTouching = true; handleMove(e.touches[0].clientX, e.touches[0].clientY); 
+        }, {passive: false});
+        
+        canvas.addEventListener('touchmove', (e) => { 
+            if(isPanMode) return; // Allow native scroll
+            e.preventDefault(); handleMove(e.touches[0].clientX, e.touches[0].clientY); 
+        }, {passive: false});
+        
+        canvas.addEventListener('touchend', (e) => { 
+            if(isPanMode) return; // Allow native scroll
+            e.preventDefault(); handleTap(); isTouching = false; renderCanvas(); 
+        });
 
         function calculateArea() {
             let area = 0, j = drawnPath.length - 2; 
@@ -402,4 +479,3 @@
     </script>
 </body>
 </html>
-
