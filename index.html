@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Pro Chain Survey - Zoom & Draw (Offline)</title>
+    <title>Pro Chain Survey - Pinch Zoom & Draw (Offline)</title>
     <style>
         body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; margin: 0; padding: 0; background-color: #f1f5f9; color: #334155; }
         .header { background-color: #1e293b; color: white; padding: 15px 20px; text-align: center; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); }
@@ -43,17 +43,16 @@
         
         canvas { 
             background-color: #ffffff; 
-            touch-action: none; 
+            touch-action: none; /* Prevents default browser zoom/scroll */
             cursor: crosshair; 
-            width: 100%; /* Will be changed by zoom */
+            width: 100%; 
             height: auto; 
             display: block;
             transform-origin: top left;
         }
         
-        .status-bar { background: #dbeafe; color: #1e40af; padding: 12px; border-radius: 6px; text-align: center; font-weight: bold; margin-bottom: 15px; font-size: 14px;}
+        .status-bar { background: #dbeafe; color: #1e40af; padding: 12px; border-radius: 6px; text-align: center; font-weight: bold; margin-bottom: 15px; font-size: 13px;}
         .result-box { background-color: #d1fae5; color: #065f46; padding: 15px; border-radius: 6px; font-size: 18px; margin-top: 15px; text-align: center; display: none; border: 1px solid #a7f3d0; }
-
         .print-footer { display: none; text-align: right; font-size: 10px; color: black; margin-top: 40px; font-style: italic; }
 
         @media print {
@@ -74,7 +73,6 @@
         <h2>Chain Survey Plotter (Offline)</h2>
     </div>
 
-    <!-- ================= SCREEN 1: DATA ENTRY ================= -->
     <div id="screen-input" class="screen active">
         <div class="box">
             <h3>Step 1: Triangles Framework</h3>
@@ -109,10 +107,8 @@
         <button class="btn-primary" onclick="generateAndSwitch()">Generate Diagram & Draw ➡️</button>
     </div>
 
-    <!-- ================= SCREEN 2: DRAWING CANVAS ================= -->
     <div id="screen-drawing" class="screen">
         
-        <!-- Controls for Actions -->
         <div class="toolbar">
             <div class="toolbar-group">
                 <button class="btn-secondary" onclick="switchScreen('screen-input')">⬅️ Back</button>
@@ -124,7 +120,6 @@
             </div>
         </div>
 
-        <!-- NEW: Zoom & Pan Controls -->
         <div class="toolbar" style="background: #e2e8f0;">
             <div class="toolbar-group">
                 <button id="btn-mode" class="btn-mode" onclick="toggleMode()">👆 Draw Mode</button>
@@ -137,10 +132,9 @@
         </div>
 
         <div id="statusMsg" class="status-bar">
-            Touch points to draw. Use 'Move Mode' to scroll around if zoomed in.
+            1 Finger: Draw outerline | 2 Fingers: Pinch to Zoom & Move.
         </div>
         
-        <!-- Scrollable Wrapper -->
         <div class="canvas-wrapper" id="canvasWrapper">
             <canvas id="surveyCanvas" width="1200" height="1200"></canvas>
         </div>
@@ -158,18 +152,27 @@
         const triBody = document.getElementById('triBody');
         const offBody = document.getElementById('offBody');
         const canvas = document.getElementById('surveyCanvas');
+        const canvasWrapper = document.getElementById('canvasWrapper');
         const ctx = canvas.getContext('2d');
 
         let createdNodes = {}; 
         let snapPoints = []; 
         let drawnPath = []; 
         let currentMousePos = { x: 0, y: 0 };
-        const snapDistance = 50; 
+        const snapDistance = 60; 
+        
+        // Touch & Gesture Tracking
         let isTouching = false; 
-
-        // Zoom & Pan States
         let currentZoom = 100;
         let isPanMode = false;
+
+        // Pinch/Pan variables
+        let pinchStartDist = 0;
+        let pinchStartZoom = 100;
+        let panStartX = 0;
+        let panStartY = 0;
+        let scrollStartX = 0;
+        let scrollStartY = 0;
 
         addOffsetRow('A', 'B', '', 5, '10');
         addOffsetRow('A', 'B', '12', 20, '');
@@ -180,20 +183,12 @@
             window.scrollTo(0, 0);
         }
 
-        // ================= ZOOM & PAN LOGIC =================
-        function zoomIn() {
-            currentZoom += 50;
-            updateZoom();
-        }
-
-        function zoomOut() {
-            currentZoom = Math.max(100, currentZoom - 50); // Minimum 100%
-            updateZoom();
-        }
-
+        // ================= ZOOM & MANAUL PAN LOGIC =================
+        function zoomIn() { currentZoom = Math.min(600, currentZoom + 50); updateZoom(); }
+        function zoomOut() { currentZoom = Math.max(100, currentZoom - 50); updateZoom(); }
         function updateZoom() {
             canvas.style.width = currentZoom + '%';
-            document.getElementById('zoomText').innerText = currentZoom + '%';
+            document.getElementById('zoomText').innerText = Math.round(currentZoom) + '%';
         }
 
         function toggleMode() {
@@ -201,17 +196,17 @@
             const btn = document.getElementById('btn-mode');
             if(isPanMode) {
                 btn.innerHTML = "✋ Move Mode";
-                btn.style.backgroundColor = "#8b5cf6"; // Purple color for move
-                canvas.style.touchAction = "auto"; // Allows native phone scrolling
-                document.getElementById('statusMsg').innerText = "Move Mode: Swipe to scroll the paper.";
+                btn.style.backgroundColor = "#8b5cf6"; 
+                canvas.style.touchAction = "auto"; 
+                document.getElementById('statusMsg').innerText = "1 Finger: Scroll | 2 Fingers: Zoom & Scroll";
             } else {
                 btn.innerHTML = "👆 Draw Mode";
-                btn.style.backgroundColor = "#2563eb"; // Blue color for draw
-                canvas.style.touchAction = "none"; // Blocks scrolling, captures touch for drawing
-                document.getElementById('statusMsg').innerText = "Draw Mode: Touch points to draw boundaries.";
+                btn.style.backgroundColor = "#2563eb"; 
+                canvas.style.touchAction = "none"; 
+                document.getElementById('statusMsg').innerText = "1 Finger: Draw | 2 Fingers: Pinch Zoom & Move";
             }
         }
-        // ====================================================
+        // ==========================================================
 
         function addTriangleRow() {
             let nodes = ['A', 'B', 'C'];
@@ -321,16 +316,8 @@
             }));
 
             switchScreen('screen-drawing');
-            
-            // Auto switch to DRAW mode on load
-            if(isPanMode) toggleMode(); 
-            
-            document.getElementById('statusMsg').innerText = "Points Generated! Touch points to draw the outerline.";
-            document.getElementById('statusMsg').style.background = "#dbeafe";
-            
-            // Reset zoom
-            currentZoom = 100;
-            updateZoom();
+            if(isPanMode) toggleMode(); // Force draw mode
+            currentZoom = 100; updateZoom();
             renderCanvas();
         }
 
@@ -384,21 +371,58 @@
                 ctx.fillStyle = "rgba(16, 185, 129, 0.5)";
                 ctx.beginPath(); ctx.arc(sp.cx, sp.cy, 25, 0, Math.PI*2); ctx.fill();
             }
+
+            // ================= IMPROVED MAGNIFIER =================
+            // Visible ONLY when drawing with 1 finger
+            if (isTouching && currentMousePos.x > 0 && !isPathClosed()) {
+                ctx.save();
+                let magSize = 280; 
+                let zoomLevel = 2.5; 
+                
+                // Offset lens ABOVE and LEFT of the finger so finger doesn't block it
+                let magX = currentMousePos.x - 180; 
+                let magY = currentMousePos.y - 180;
+                
+                // Ensure lens stays inside visible canvas bounds
+                if(magX < magSize/2) magX = magSize/2 + 20;
+                if(magY < magSize/2) magY = magSize/2 + 20;
+                if(magX > canvas.width - magSize/2) magX = canvas.width - magSize/2 - 20;
+
+                // Draw Lens Frame
+                ctx.beginPath(); ctx.arc(magX, magY, magSize/2, 0, Math.PI*2);
+                ctx.lineWidth = 8; ctx.strokeStyle = "#1e293b"; ctx.stroke(); ctx.clip(); 
+                ctx.fillStyle = "white"; ctx.fill();
+                
+                // Draw Zoomed Image
+                let srcX = currentMousePos.x - (magSize / (2 * zoomLevel));
+                let srcY = currentMousePos.y - (magSize / (2 * zoomLevel));
+                ctx.drawImage(canvas, srcX, srcY, magSize/zoomLevel, magSize/zoomLevel, magX - magSize/2, magY - magSize/2, magSize, magSize);
+                
+                // Draw Crosshair in center of Lens
+                ctx.beginPath();
+                ctx.moveTo(magX - 20, magY); ctx.lineTo(magX + 20, magY);
+                ctx.moveTo(magX, magY - 20); ctx.lineTo(magX, magY + 20);
+                ctx.strokeStyle = "rgba(239, 68, 68, 0.9)"; ctx.lineWidth = 4; ctx.stroke();
+                
+                // Inner Target Dot
+                ctx.beginPath(); ctx.arc(magX, magY, 4, 0, Math.PI*2);
+                ctx.fillStyle = "red"; ctx.fill();
+                
+                ctx.restore();
+            }
+            // ======================================================
         }
 
         function isPathClosed() { return drawnPath.length > 2 && drawnPath[0].cx === drawnPath[drawnPath.length-1].cx; }
         function getSnappedPoint(mx, my) { return snapPoints.filter(p=>p.isSnap).find(p => Math.hypot(mx - p.cx, my - p.cy) < snapDistance) || null; }
         
         function handleMove(x, y) {
-            if(document.getElementById('screen-drawing').classList.contains('active')) {
-                const rect = canvas.getBoundingClientRect();
-                // Logic automatically accounts for current zoom CSS styling
-                currentMousePos.x = (x - rect.left) * (canvas.width / rect.width);
-                currentMousePos.y = (y - rect.top) * (canvas.height / rect.height);
-                let sp = getSnappedPoint(currentMousePos.x, currentMousePos.y);
-                if (sp) { currentMousePos.x = sp.cx; currentMousePos.y = sp.cy; }
-                if(snapPoints.length > 0) renderCanvas();
-            }
+            const rect = canvas.getBoundingClientRect();
+            currentMousePos.x = (x - rect.left) * (canvas.width / rect.width);
+            currentMousePos.y = (y - rect.top) * (canvas.height / rect.height);
+            let sp = getSnappedPoint(currentMousePos.x, currentMousePos.y);
+            if (sp) { currentMousePos.x = sp.cx; currentMousePos.y = sp.cy; }
+            if(snapPoints.length > 0) renderCanvas();
         }
 
         function handleTap() {
@@ -414,6 +438,9 @@
             }
         }
 
+        // ================= GESTURE CONTROL (MOUSE & TOUCH) =================
+        
+        // MOUSE
         canvas.addEventListener('mousedown', (e) => { 
             if(isPanMode) return;
             isTouching = true; handleMove(e.clientX, e.clientY); 
@@ -424,24 +451,72 @@
         });
         canvas.addEventListener('mouseup', (e) => { 
             if(isPanMode) return;
-            handleTap(); isTouching = false; renderCanvas(); 
+            if(isTouching) { handleTap(); isTouching = false; renderCanvas(); }
         });
         canvas.addEventListener('mouseleave', () => { isTouching = false; renderCanvas(); });
 
+        // TOUCH (PINCH, PAN & DRAW)
         canvas.addEventListener('touchstart', (e) => { 
-            if(isPanMode) return; // Allow native scroll
-            e.preventDefault(); isTouching = true; handleMove(e.touches[0].clientX, e.touches[0].clientY); 
+            if(isPanMode) return; // Let native touch work
+            e.preventDefault(); 
+            
+            if (e.touches.length === 2) {
+                // 2 Fingers: Setup Pinch/Pan
+                let dx = e.touches[0].clientX - e.touches[1].clientX;
+                let dy = e.touches[0].clientY - e.touches[1].clientY;
+                pinchStartDist = Math.hypot(dx, dy);
+                pinchStartZoom = currentZoom;
+                panStartX = (e.touches[0].clientX + e.touches[1].clientX) / 2;
+                panStartY = (e.touches[0].clientY + e.touches[1].clientY) / 2;
+                scrollStartX = canvasWrapper.scrollLeft;
+                scrollStartY = canvasWrapper.scrollTop;
+                isTouching = false; // Stop drawing
+                renderCanvas();
+            } else if (e.touches.length === 1) {
+                // 1 Finger: Draw Mode
+                isTouching = true; 
+                handleMove(e.touches[0].clientX, e.touches[0].clientY); 
+            }
         }, {passive: false});
         
         canvas.addEventListener('touchmove', (e) => { 
-            if(isPanMode) return; // Allow native scroll
-            e.preventDefault(); handleMove(e.touches[0].clientX, e.touches[0].clientY); 
+            if(isPanMode) return;
+            e.preventDefault(); 
+            
+            if (e.touches.length === 2) {
+                // 2 Fingers: Execute Pinch/Pan
+                let dx = e.touches[0].clientX - e.touches[1].clientX;
+                let dy = e.touches[0].clientY - e.touches[1].clientY;
+                let dist = Math.hypot(dx, dy);
+                
+                // Zoom
+                currentZoom = pinchStartZoom * (dist / pinchStartDist);
+                currentZoom = Math.max(100, Math.min(currentZoom, 600)); // Limit 100% - 600%
+                updateZoom();
+
+                // Pan (Scroll wrapper)
+                let midX = (e.touches[0].clientX + e.touches[1].clientX) / 2;
+                let midY = (e.touches[0].clientY + e.touches[1].clientY) / 2;
+                canvasWrapper.scrollLeft = scrollStartX - (midX - panStartX);
+                canvasWrapper.scrollTop = scrollStartY - (midY - panStartY);
+                
+            } else if (e.touches.length === 1 && isTouching) {
+                handleMove(e.touches[0].clientX, e.touches[0].clientY); 
+            }
         }, {passive: false});
         
         canvas.addEventListener('touchend', (e) => { 
-            if(isPanMode) return; // Allow native scroll
-            e.preventDefault(); handleTap(); isTouching = false; renderCanvas(); 
+            if(isPanMode) return;
+            e.preventDefault(); 
+            if (e.touches.length === 0 && isTouching) {
+                // Last finger lifted
+                handleTap(); 
+                isTouching = false; 
+                renderCanvas(); 
+            }
         });
+
+        // =================================================================
 
         function calculateArea() {
             let area = 0, j = drawnPath.length - 2; 
@@ -452,15 +527,9 @@
             document.getElementById('areaSqm').innerText = area.toFixed(2);
             document.getElementById('areaCent').innerText = (area / 40.4686).toFixed(2);
             document.getElementById('results').style.display = 'block';
-            document.getElementById('statusMsg').innerText = "Boundary Closed! Area Calculated.";
-            document.getElementById('statusMsg').style.background = "#d1fae5";
         }
 
-        function clearDrawing() { 
-            drawnPath = []; document.getElementById('results').style.display = 'none'; 
-            document.getElementById('statusMsg').innerText = "Outerline cleared. Touch points to draw again.";
-            renderCanvas(); 
-        }
+        function clearDrawing() { drawnPath = []; document.getElementById('results').style.display = 'none'; renderCanvas(); }
 
         function saveAsImage() {
             if(!isPathClosed()) { alert("Please close the boundary first to save!"); return; }
