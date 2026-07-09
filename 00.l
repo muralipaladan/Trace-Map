@@ -1,0 +1,542 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pro Chain Survey - Smart Snap (Offline)</title>
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; margin: 0; padding: 0; background-color: #f1f5f9; color: #334155; }
+        .header { background-color: #1e293b; color: white; padding: 15px 20px; text-align: center; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); }
+        .header h2 { margin: 0; font-size: 20px; }
+        .screen { display: none; padding: 15px; max-width: 900px; margin: 0 auto; }
+        .screen.active { display: block; }
+        .box { background: white; border: 1px solid #e2e8f0; padding: 15px; border-radius: 8px; margin-bottom: 20px; box-shadow: 0 1px 3px rgba(0,0,0,0.05); }
+        .box h3 { margin-top: 0; color: #0f172a; border-bottom: 2px solid #e2e8f0; padding-bottom: 8px; font-size: 16px;}
+        table { width: 100%; border-collapse: collapse; text-align: center; font-size: 14px;}
+        th { background-color: #f8fafc; color: #475569; padding: 10px; border-bottom: 2px solid #cbd5e1;}
+        td { border-bottom: 1px solid #e2e8f0; padding: 8px 4px; }
+        input[type="number"], input[type="text"], select { width: 95%; padding: 8px 5px; text-align: center; border: 1px solid #cbd5e1; border-radius: 4px; font-size: 14px; box-sizing: border-box; }
+        button { padding: 12px; border: none; border-radius: 6px; font-weight: bold; cursor: pointer; color: white; font-size: 15px; transition: 0.2s; width: 100%; }
+        
+        .btn-add { background-color: #3b82f6; margin-top: 10px; }
+        .btn-primary { background-color: #10b981; font-size: 18px; padding: 15px; margin-top: 10px;}
+        .btn-secondary { background-color: #64748b; width: auto; padding: 10px 15px;}
+        .btn-clear { background-color: #ef4444; width: auto; padding: 10px 15px;}
+        .btn-img { background-color: #8b5cf6; width: auto; padding: 10px 15px;}
+        .btn-pdf { background-color: #f59e0b; width: auto; padding: 10px 15px; color: #000;}
+        .btn-mode { background-color: #2563eb; width: auto; padding: 10px 15px;}
+        
+        .toolbar { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; margin-bottom: 10px; gap: 10px; background: white; padding: 10px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.05);}
+        .toolbar-group { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+        
+        .canvas-wrapper {
+            width: 100%; 
+            max-height: 65vh; 
+            overflow: auto; 
+            border: 2px solid #94a3b8; 
+            border-radius: 8px; 
+            background: #ffffff;
+            box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1);
+            position: relative;
+        }
+        
+        canvas { 
+            background-color: #ffffff; 
+            touch-action: none; 
+            cursor: crosshair; 
+            width: 100%; 
+            height: auto; 
+            display: block;
+            transform-origin: top left;
+        }
+        
+        .status-bar { background: #dbeafe; color: #1e40af; padding: 12px; border-radius: 6px; text-align: center; font-weight: bold; margin-bottom: 15px; font-size: 13px;}
+        .result-box { background-color: #d1fae5; color: #065f46; padding: 15px; border-radius: 6px; font-size: 18px; margin-top: 15px; text-align: center; display: none; border: 1px solid #a7f3d0; }
+        .print-footer { display: none; text-align: right; font-size: 10px; color: black; margin-top: 40px; font-style: italic; }
+
+        @media print {
+            body { background: white; padding: 0; margin: 0; }
+            .header, .box, .toolbar, .status-bar, .btn-primary, .btn-add { display: none !important; }
+            #screen-input { display: none !important; }
+            #screen-drawing { display: block !important; }
+            .canvas-wrapper { overflow: visible !important; max-height: none !important; border: none !important; box-shadow: none !important;}
+            canvas { width: 100% !important; border: 2px solid black !important; }
+            .result-box { border: 2px solid #000; background: transparent; color: black; margin-top: 20px; font-size: 20px;}
+            .print-footer { display: block !important; }
+        }
+    </style>
+</head>
+<body>
+
+    <div class="header">
+        <h2>Chain Survey Plotter (Offline)</h2>
+    </div>
+
+    <div id="screen-input" class="screen active">
+        <div class="box">
+            <h3>Step 1: Triangles Framework</h3>
+            <table id="triangleTable">
+                <thead>
+                    <tr><th>Line</th><th>New Pt</th><th>Side 1</th><th>Side 2</th><th>Flip</th></tr>
+                </thead>
+                <tbody id="triBody">
+                    <tr style="background:#f8fafc;">
+                        <td><b>A-B</b>(<input type="number" id="baseAB" value="30" style="width:40px; padding:2px;">)</td>
+                        <td><b>C</b></td>
+                        <td><input type="number" class="t-s1" value="20"></td>
+                        <td><input type="number" class="t-s2" value="25"></td>
+                        <td>-</td>
+                    </tr>
+                </tbody>
+            </table>
+            <button class="btn-add" onclick="addTriangleRow()">+ Add Next Triangle</button>
+        </div>
+
+        <div class="box">
+            <h3>Step 2: Offsets Data</h3>
+            <table id="offsetTable">
+                <thead>
+                    <tr><th>Line</th><th>Left</th><th>Chain(m)</th><th>Right</th></tr>
+                </thead>
+                <tbody id="offBody">
+                </tbody>
+            </table>
+            <button class="btn-add" onclick="addOffsetRow()">+ Add Offset Row</button>
+        </div>
+        <button class="btn-primary" onclick="generateAndSwitch()">Generate Diagram & Draw ➡️</button>
+    </div>
+
+    <div id="screen-drawing" class="screen">
+        
+        <div class="toolbar">
+            <div class="toolbar-group">
+                <button class="btn-secondary" onclick="switchScreen('screen-input')">⬅️ Back</button>
+                <button class="btn-clear" onclick="clearDrawing()">🧽 Clear</button>
+            </div>
+            <div class="toolbar-group">
+                <button class="btn-img" onclick="saveAsImage()">🖼️ Image</button>
+                <button class="btn-pdf" onclick="saveAsPDF()">📄 PDF</button>
+            </div>
+        </div>
+
+        <div class="toolbar" style="background: #e2e8f0;">
+            <div class="toolbar-group">
+                <button id="btn-mode" class="btn-mode" onclick="toggleMode()">👆 Draw Mode</button>
+            </div>
+            <div class="toolbar-group">
+                <button class="btn-secondary" onclick="zoomOut()">🔍 ➖</button>
+                <span id="zoomText" style="font-weight:bold; width: 45px; text-align:center;">100%</span>
+                <button class="btn-secondary" onclick="zoomIn()">🔍 ➕</button>
+            </div>
+        </div>
+
+        <div id="statusMsg" class="status-bar">
+            1 Finger: Draw outerline | 2 Fingers: Pinch to Zoom & Move.
+        </div>
+        
+        <div class="canvas-wrapper" id="canvasWrapper">
+            <canvas id="surveyCanvas" width="1200" height="1200"></canvas>
+        </div>
+        
+        <div id="results" class="result-box">
+            <b>Total Area:</b> <br><span id="areaSqm">0</span> Sq.m | <b><span id="areaCent">0</span> Cents</b>
+        </div>
+
+        <div class="print-footer">
+            Muraleedharan P 9400849115
+        </div>
+    </div>
+
+    <script>
+        const triBody = document.getElementById('triBody');
+        const offBody = document.getElementById('offBody');
+        const canvas = document.getElementById('surveyCanvas');
+        const canvasWrapper = document.getElementById('canvasWrapper');
+        const ctx = canvas.getContext('2d');
+
+        let createdNodes = {}; 
+        let snapPoints = []; 
+        let drawnPath = []; 
+        let currentMousePos = { x: 0, y: 0 };
+        const snapDistance = 50; 
+        
+        let isTouching = false; 
+        let currentZoom = 100;
+        let isPanMode = false;
+
+        let pinchStartDist = 0;
+        let pinchStartZoom = 100;
+        let panStartX = 0;
+        let panStartY = 0;
+        let scrollStartX = 0;
+        let scrollStartY = 0;
+
+        addOffsetRow('A', 'B', '', 5, '10');
+        addOffsetRow('A', 'B', '12', 20, '');
+
+        function switchScreen(screenId) {
+            document.querySelectorAll('.screen').forEach(el => el.classList.remove('active'));
+            document.getElementById(screenId).classList.add('active');
+            window.scrollTo(0, 0);
+        }
+
+        function zoomIn() { currentZoom = Math.min(800, currentZoom + 50); updateZoom(); }
+        function zoomOut() { currentZoom = Math.max(100, currentZoom - 50); updateZoom(); }
+        function updateZoom() {
+            canvas.style.width = currentZoom + '%';
+            document.getElementById('zoomText').innerText = Math.round(currentZoom) + '%';
+        }
+
+        function toggleMode() {
+            isPanMode = !isPanMode;
+            const btn = document.getElementById('btn-mode');
+            if(isPanMode) {
+                btn.innerHTML = "✋ Move Mode";
+                btn.style.backgroundColor = "#8b5cf6"; 
+                canvas.style.touchAction = "auto"; 
+                document.getElementById('statusMsg').innerText = "1 Finger: Scroll | 2 Fingers: Zoom & Scroll";
+            } else {
+                btn.innerHTML = "👆 Draw Mode";
+                btn.style.backgroundColor = "#2563eb"; 
+                canvas.style.touchAction = "none"; 
+                document.getElementById('statusMsg').innerText = "1 Finger: Draw | 2 Fingers: Pinch Zoom & Move";
+            }
+        }
+
+        function addTriangleRow() {
+            let nodes = ['A', 'B', 'C'];
+            document.querySelectorAll('.new-pt-input').forEach(input => { if(input.value) nodes.push(input.value.toUpperCase()); });
+            let options = nodes.map(n => `<option value="${n}">${n}</option>`).join('');
+            let nextChar = String.fromCharCode(nodes[nodes.length-1].charCodeAt(0) + 1);
+
+            const tr = document.createElement('tr');
+            tr.innerHTML = `
+                <td><select class="t-p1" style="width:40px; padding:2px;">${options}</select>-<select class="t-p2" style="width:40px; padding:2px;">${options}</select></td>
+                <td><input type="text" class="new-pt-input" value="${nextChar}" maxlength="1" style="width:30px; font-weight:bold;"></td>
+                <td><input type="number" class="t-s1" placeholder="S1"></td>
+                <td><input type="number" class="t-s2" placeholder="S2"></td>
+                <td><input type="checkbox" class="t-flip" style="transform: scale(1.5);"></td>
+            `;
+            triBody.appendChild(tr);
+        }
+
+        function addOffsetRow(p1='A', p2='B', left='', chainage='', right='') {
+            const tr = document.createElement('tr');
+            tr.innerHTML = `
+                <td><input type="text" class="o-p1" value="${p1}" maxlength="1" style="width:35px;">-<input type="text" class="o-p2" value="${p2}" maxlength="1" style="width:35px;"></td>
+                <td><input type="number" class="left-off" value="${left}"></td>
+                <td><input type="number" class="chainage" value="${chainage}"></td>
+                <td><input type="number" class="right-off" value="${right}"></td>
+            `;
+            offBody.appendChild(tr);
+        }
+
+        function getThirdPoint(p1, r1, p2, r2, flip) {
+            let d = Math.hypot(p2.x - p1.x, p2.y - p1.y);
+            if (d > r1 + r2 || d < Math.abs(r1 - r2) || d === 0) return null; 
+            let a = (r1*r1 - r2*r2 + d*d) / (2*d);
+            let h = Math.sqrt(Math.max(0, r1*r1 - a*a));
+            let p3x = p1.x + a * (p2.x - p1.x) / d;
+            let p3y = p1.y + a * (p2.y - p1.y) / d;
+            if (flip) return { x: p3x + h * (p2.y - p1.y) / d, y: p3y - h * (p2.x - p1.x) / d };
+            return { x: p3x - h * (p2.y - p1.y) / d, y: p3y + h * (p2.x - p1.x) / d };
+        }
+
+        function generateAndSwitch() {
+            createdNodes = {}; snapPoints = []; drawnPath = [];
+            document.getElementById('results').style.display = 'none';
+
+            let ab = parseFloat(document.getElementById('baseAB').value) || 0;
+            let ac = parseFloat(document.querySelector('#triBody tr:nth-child(1) .t-s1').value) || 0;
+            let bc = parseFloat(document.querySelector('#triBody tr:nth-child(1) .t-s2').value) || 0;
+
+            if (ab+bc <= ac || ab+ac <= bc || bc+ac <= ab) { alert("Base Triangle ABC is invalid! Check lengths."); return; }
+
+            createdNodes['A'] = { x: 0, y: 0 };
+            createdNodes['B'] = { x: ab, y: 0 };
+            createdNodes['C'] = getThirdPoint(createdNodes['A'], ac, createdNodes['B'], bc, false);
+
+            let rows = document.querySelectorAll('#triBody tr');
+            for(let i=1; i<rows.length; i++) {
+                let p1Id = rows[i].querySelector('.t-p1').value.toUpperCase();
+                let p2Id = rows[i].querySelector('.t-p2').value.toUpperCase();
+                let newId = rows[i].querySelector('.new-pt-input').value.toUpperCase();
+                let s1 = parseFloat(rows[i].querySelector('.t-s1').value) || 0;
+                let s2 = parseFloat(rows[i].querySelector('.t-s2').value) || 0;
+                let flip = rows[i].querySelector('.t-flip').checked;
+
+                if(!createdNodes[p1Id] || !createdNodes[p2Id]) { alert(`Missing reference points for ${newId}`); return; }
+                let p3 = getThirdPoint(createdNodes[p1Id], s1, createdNodes[p2Id], s2, flip);
+                if(!p3) { alert(`Triangle for point ${newId} is impossible!`); return; }
+                createdNodes[newId] = p3;
+            }
+
+            let mathPoints = [];
+            for (let [id, pt] of Object.entries(createdNodes)) mathPoints.push({ x: pt.x, y: pt.y, label: id, isNode: true });
+
+            document.querySelectorAll('#offBody tr').forEach(row => {
+                let p1Id = row.querySelector('.o-p1').value.toUpperCase();
+                let p2Id = row.querySelector('.o-p2').value.toUpperCase();
+                let l = parseFloat(row.querySelector('.left-off').value) || 0;
+                let c = parseFloat(row.querySelector('.chainage').value);
+                let r = parseFloat(row.querySelector('.right-off').value) || 0;
+                
+                if (isNaN(c) || !createdNodes[p1Id] || !createdNodes[p2Id]) return;
+
+                let p1 = createdNodes[p1Id]; let p2 = createdNodes[p2Id];
+                let dx = p2.x - p1.x; let dy = p2.y - p1.y;
+                let len = Math.hypot(dx, dy);
+                if(len === 0) return;
+                
+                let ux = dx / len; let uy = dy / len;
+                let chX = p1.x + ux * c; let chY = p1.y + uy * c;
+                mathPoints.push({ x: chX, y: chY, isChainage: true });
+
+                if (l > 0) mathPoints.push({ x: chX - uy * l, y: chY + ux * l, isSnap: true, realX: chX - uy * l, realY: chY + ux * l });
+                if (r > 0) mathPoints.push({ x: chX + uy * r, y: chY - ux * r, isSnap: true, realX: chX + uy * r, realY: chY - ux * r });
+            });
+
+            let minX = Math.min(...mathPoints.map(p => p.x)); let maxX = Math.max(...mathPoints.map(p => p.x));
+            let minY = Math.min(...mathPoints.map(p => p.y)); let maxY = Math.max(...mathPoints.map(p => p.y));
+            const pad = 150;
+            const scaleX = (canvas.width - pad*2) / ((maxX - minX) || 1);
+            const scaleY = (canvas.height - pad*2) / ((maxY - minY) || 1);
+            const scale = Math.min(scaleX, scaleY);
+            const offsetX = pad - (minX * scale);
+            const offsetY = canvas.height - pad + (minY * scale);
+
+            snapPoints = mathPoints.map(p => ({
+                cx: p.x * scale + offsetX, cy: offsetY - (p.y * scale),
+                realX: p.x, realY: p.y, isNode: p.isNode, label: p.label, isSnap: p.isSnap || p.isNode, isChainage: p.isChainage
+            }));
+
+            switchScreen('screen-drawing');
+            if(isPanMode) toggleMode(); 
+            currentZoom = 100; updateZoom();
+            renderCanvas();
+        }
+
+        function renderCanvas() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            let nodes = snapPoints.filter(p => p.isNode);
+            ctx.strokeStyle = "#cbd5e1"; ctx.lineWidth = 3; ctx.setLineDash([8, 8]);
+            for(let i=0; i<nodes.length; i++) {
+                for(let j=i+1; j<nodes.length; j++) {
+                    ctx.beginPath(); ctx.moveTo(nodes[i].cx, nodes[i].cy); ctx.lineTo(nodes[j].cx, nodes[j].cy); ctx.stroke();
+                }
+            }
+            ctx.setLineDash([]);
+            
+            nodes.forEach(p => {
+                ctx.fillStyle = "#334155"; ctx.beginPath(); ctx.arc(p.cx, p.cy, 8, 0, Math.PI*2); ctx.fill();
+                ctx.font = "bold 24px Arial"; ctx.fillText(p.label, p.cx - 10, p.cy - 16);
+            });
+
+            snapPoints.filter(p => p.isSnap && !p.isNode).forEach(p => {
+                ctx.fillStyle = "#3b82f6"; ctx.beginPath(); ctx.arc(p.cx, p.cy, 12, 0, Math.PI*2); ctx.fill();
+            });
+
+            if (drawnPath.length > 0) {
+                ctx.beginPath(); ctx.moveTo(drawnPath[0].cx, drawnPath[0].cy);
+                for (let i = 1; i < drawnPath.length; i++) ctx.lineTo(drawnPath[i].cx, drawnPath[i].cy);
+                
+                const isClosed = drawnPath.length > 2 && drawnPath[0].cx === drawnPath[drawnPath.length-1].cx;
+                if (!isClosed && isTouching) ctx.lineTo(currentMousePos.x, currentMousePos.y);
+
+                ctx.strokeStyle = "#ef4444"; ctx.lineWidth = 6; ctx.stroke();
+                if (isClosed) { ctx.fillStyle = "rgba(16, 185, 129, 0.15)"; ctx.fill(); }
+
+                ctx.textAlign = "center";
+                for (let i = 0; i < drawnPath.length - 1; i++) {
+                    let p1 = drawnPath[i], p2 = drawnPath[i+1];
+                    let dist = Math.hypot(p2.realX - p1.realX, p2.realY - p1.realY);
+                    if(dist > 0) {
+                        let midX = (p1.cx + p2.cx)/2, midY = (p1.cy + p2.cy)/2;
+                        ctx.font = "bold 22px Arial"; ctx.lineWidth = 6; ctx.strokeStyle = "white";
+                        ctx.strokeText(dist.toFixed(2)+"m", midX, midY - 16);
+                        ctx.fillStyle = "#0f172a"; ctx.fillText(dist.toFixed(2)+"m", midX, midY - 16);
+                    }
+                }
+                ctx.textAlign = "left";
+            }
+
+            let sp = getSnappedPoint(currentMousePos.x, currentMousePos.y);
+            if (sp && (!drawnPath.length || !isPathClosed())) {
+                ctx.fillStyle = "rgba(16, 185, 129, 0.5)";
+                ctx.beginPath(); ctx.arc(sp.cx, sp.cy, 25, 0, Math.PI*2); ctx.fill();
+            }
+
+            if (isTouching && currentMousePos.x > 0 && !isPathClosed()) {
+                ctx.save();
+                let magSize = 280; 
+                let zoomLevel = 2.5; 
+                
+                let magX = currentMousePos.x - 180; 
+                let magY = currentMousePos.y - 180;
+                
+                if(magX < magSize/2) magX = magSize/2 + 20;
+                if(magY < magSize/2) magY = magSize/2 + 20;
+                if(magX > canvas.width - magSize/2) magX = canvas.width - magSize/2 - 20;
+
+                ctx.beginPath(); ctx.arc(magX, magY, magSize/2, 0, Math.PI*2);
+                ctx.lineWidth = 8; ctx.strokeStyle = "#1e293b"; ctx.stroke(); ctx.clip(); 
+                ctx.fillStyle = "white"; ctx.fill();
+                
+                let srcX = currentMousePos.x - (magSize / (2 * zoomLevel));
+                let srcY = currentMousePos.y - (magSize / (2 * zoomLevel));
+                ctx.drawImage(canvas, srcX, srcY, magSize/zoomLevel, magSize/zoomLevel, magX - magSize/2, magY - magSize/2, magSize, magSize);
+                
+                ctx.beginPath();
+                ctx.moveTo(magX - 20, magY); ctx.lineTo(magX + 20, magY);
+                ctx.moveTo(magX, magY - 20); ctx.lineTo(magX, magY + 20);
+                ctx.strokeStyle = "rgba(239, 68, 68, 0.9)"; ctx.lineWidth = 4; ctx.stroke();
+                
+                ctx.beginPath(); ctx.arc(magX, magY, 4, 0, Math.PI*2);
+                ctx.fillStyle = "red"; ctx.fill();
+                
+                ctx.restore();
+            }
+        }
+
+        function isPathClosed() { return drawnPath.length > 2 && drawnPath[0].cx === drawnPath[drawnPath.length-1].cx; }
+        
+        // ================= SMART SNAP LOGIC (FIXED) =================
+        function getSnappedPoint(mx, my) { 
+            let closestPoint = null;
+            let minimumDistance = snapDistance;
+            
+            for (let p of snapPoints) {
+                if (p.isSnap) {
+                    let dist = Math.hypot(mx - p.cx, my - p.cy);
+                    // This ensures it ONLY picks the EXACT closest point within the radius
+                    if (dist < minimumDistance) {
+                        minimumDistance = dist;
+                        closestPoint = p;
+                    }
+                }
+            }
+            return closestPoint;
+        }
+        // ============================================================
+        
+        function handleMove(x, y) {
+            const rect = canvas.getBoundingClientRect();
+            currentMousePos.x = (x - rect.left) * (canvas.width / rect.width);
+            currentMousePos.y = (y - rect.top) * (canvas.height / rect.height);
+            let sp = getSnappedPoint(currentMousePos.x, currentMousePos.y);
+            if (sp) { currentMousePos.x = sp.cx; currentMousePos.y = sp.cy; }
+            if(snapPoints.length > 0) renderCanvas();
+        }
+
+        function handleTap() {
+            if (isPathClosed()) return;
+            let sp = getSnappedPoint(currentMousePos.x, currentMousePos.y);
+            if (sp) {
+                if (drawnPath.length > 2 && sp.cx === drawnPath[0].cx && sp.cy === drawnPath[0].cy) {
+                    drawnPath.push(sp); calculateArea();
+                } else if (drawnPath.length === 0 || (drawnPath[drawnPath.length-1].cx !== sp.cx || drawnPath[drawnPath.length-1].cy !== sp.cy)) {
+                    drawnPath.push(sp);
+                }
+                renderCanvas();
+            }
+        }
+
+        canvas.addEventListener('mousedown', (e) => { 
+            if(isPanMode) return;
+            isTouching = true; handleMove(e.clientX, e.clientY); 
+        });
+        canvas.addEventListener('mousemove', (e) => { 
+            if(isPanMode) return;
+            if(isTouching) handleMove(e.clientX, e.clientY); 
+        });
+        canvas.addEventListener('mouseup', (e) => { 
+            if(isPanMode) return;
+            if(isTouching) { handleTap(); isTouching = false; renderCanvas(); }
+        });
+        canvas.addEventListener('mouseleave', () => { isTouching = false; renderCanvas(); });
+
+        canvas.addEventListener('touchstart', (e) => { 
+            if(isPanMode) return; 
+            e.preventDefault(); 
+            
+            if (e.touches.length === 2) {
+                let dx = e.touches[0].clientX - e.touches[1].clientX;
+                let dy = e.touches[0].clientY - e.touches[1].clientY;
+                pinchStartDist = Math.hypot(dx, dy);
+                pinchStartZoom = currentZoom;
+                panStartX = (e.touches[0].clientX + e.touches[1].clientX) / 2;
+                panStartY = (e.touches[0].clientY + e.touches[1].clientY) / 2;
+                scrollStartX = canvasWrapper.scrollLeft;
+                scrollStartY = canvasWrapper.scrollTop;
+                isTouching = false; 
+                renderCanvas();
+            } else if (e.touches.length === 1) {
+                isTouching = true; 
+                handleMove(e.touches[0].clientX, e.touches[0].clientY); 
+            }
+        }, {passive: false});
+        
+        canvas.addEventListener('touchmove', (e) => { 
+            if(isPanMode) return;
+            e.preventDefault(); 
+            
+            if (e.touches.length === 2) {
+                let dx = e.touches[0].clientX - e.touches[1].clientX;
+                let dy = e.touches[0].clientY - e.touches[1].clientY;
+                let dist = Math.hypot(dx, dy);
+                
+                currentZoom = pinchStartZoom * (dist / pinchStartDist);
+                currentZoom = Math.max(100, Math.min(currentZoom, 800)); 
+                updateZoom();
+
+                let midX = (e.touches[0].clientX + e.touches[1].clientX) / 2;
+                let midY = (e.touches[0].clientY + e.touches[1].clientY) / 2;
+                canvasWrapper.scrollLeft = scrollStartX - (midX - panStartX);
+                canvasWrapper.scrollTop = scrollStartY - (midY - panStartY);
+                
+            } else if (e.touches.length === 1 && isTouching) {
+                handleMove(e.touches[0].clientX, e.touches[0].clientY); 
+            }
+        }, {passive: false});
+        
+        canvas.addEventListener('touchend', (e) => { 
+            if(isPanMode) return;
+            e.preventDefault(); 
+            if (e.touches.length === 0 && isTouching) {
+                handleTap(); 
+                isTouching = false; 
+                renderCanvas(); 
+            }
+        });
+
+        function calculateArea() {
+            let area = 0, j = drawnPath.length - 2; 
+            for (let i = 0; i < drawnPath.length - 1; i++) {
+                area += (drawnPath[j].realX + drawnPath[i].realX) * (drawnPath[j].realY - drawnPath[i].realY); j = i;
+            }
+            area = Math.abs(area / 2);
+            document.getElementById('areaSqm').innerText = area.toFixed(2);
+            document.getElementById('areaCent').innerText = (area / 40.4686).toFixed(2);
+            document.getElementById('results').style.display = 'block';
+        }
+
+        function clearDrawing() { drawnPath = []; document.getElementById('results').style.display = 'none'; renderCanvas(); }
+
+        function saveAsImage() {
+            if(!isPathClosed()) { alert("Please close the boundary first to save!"); return; }
+            isTouching = false; renderCanvas(); 
+            const link = document.createElement('a');
+            link.download = 'Survey_Sketch_' + Date.now() + '.png';
+            link.href = canvas.toDataURL('image/png');
+            link.click();
+        }
+
+        function saveAsPDF() {
+            if(!isPathClosed()) { alert("Please close the boundary first to save!"); return; }
+            isTouching = false; renderCanvas(); 
+            window.print();
+        }
+    </script>
+</body>
+</html>
