@@ -1,1 +1,93 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Ente Bhoomi Map with Live GPS</title>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    
+    <!-- MapLibre CSS & JS -->
+    <link href="https://unpkg.com/maplibre-gl@3.x/dist/maplibre-gl.css" rel="stylesheet" />
+    <script src="https://unpkg.com/maplibre-gl@3.x/dist/maplibre-gl.js"></script>
+    
+    <style>
+        body { margin: 0; padding: 0; }
+        #map { width: 100vw; height: 100vh; /* മാപ്പ് ഫുൾ സ്ക്രീൻ ആകാൻ */ }
+    </style>
+</head>
+<body>
+    <div id="map"></div>
 
+    <script>
+        // നിങ്ങളുടെ പഴയ URL-ൽ നിന്നുള്ള auth_key ഇവിടെ നൽകുക
+        // ശ്രദ്ധിക്കുക: സുരക്ഷാ കാരണങ്ങളാൽ ഈ കീയ്ക്ക് കാലാവധി (expiry) ഉണ്ടാകാൻ സാധ്യതയുണ്ട്.
+        const AUTH_KEY = "eyJhbGciOiJIUzUxMiJ9.eyJzdWIiOiI5Y2M4YmRlZC1iNWU1LTQ3Y2EtYTM2My1lODllYzVlZDYxNDEiLCJpYXQiOjE3ODM1OTk3ODUsImV4cCI6MTc4MzYyODU4NX0.Vx1FVLGcxCzGa3P2cOyMJ6zwnX2k8iBRv1LIjnnyLvlsi4CE2NFNYac0fKuhpNapkB27lV1mD-xpjxVsl4G4eg";
+
+        var map = new maplibregl.Map({
+            container: 'map',
+            center: [76.22, 11.23], // മാപ്പ് ആദ്യം ലോഡ് ചെയ്യേണ്ട ലൊക്കേഷൻ (ഉദാ: നിലമ്പൂർ പ്രദേശം)
+            zoom: 14,
+            style: {
+                'version': 8,
+                'sources': {
+                    // 1. ഗൂഗിൾ ഹൈബ്രിഡ് ബേസ് മാപ്പ്
+                    // (റോഡ് മാപ്പ് വേണമെങ്കിൽ lyrs=y എന്നതിന് പകരം lyrs=m എന്ന് നൽകുക)
+                    'google-map': {
+                        'type': 'raster',
+                        'tiles': [
+                            'https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}'
+                        ],
+                        'tileSize': 256
+                    },
+                    // 2. എന്റെ ഭൂമി PBF ഡാറ്റ (Vector Tile)
+                    'entebhoomi-vector': {
+                        'type': 'vector',
+                        // URL-ൽ 13/5826/3848 എന്നതിന് പകരം {z}/{x}/{y} ഉപയോഗിച്ചിരിക്കുന്നത് ശ്രദ്ധിക്കുക
+                        'tiles': [
+                            `https://survey.entebhoomi.kerala.gov.in/bhunaksha/core/v1/tilemap/MAP_DASHBOARD/000000/{z}/{x}/{y}.pbf?auth_key=${AUTH_KEY}`
+                        ]
+                    }
+                },
+                'layers': [
+                    // ഗൂഗിൾ മാപ്പ് താഴെ കാണിക്കാൻ
+                    {
+                        'id': 'google-layer',
+                        'type': 'raster',
+                        'source': 'google-map',
+                        'minzoom': 0,
+                        'maxzoom': 22
+                    },
+                    // അതിനുമുകളിൽ എന്റെ ഭൂമി അതിരുകൾ (Lines) കാണിക്കാൻ
+                    {
+                        'id': 'entebhoomi-lines',
+                        'type': 'line',
+                        'source': 'entebhoomi-vector',
+                        // ശ്രദ്ധിക്കുക: PBF ഫയലിനുള്ളിലെ ലെയറിന്റെ പേര് (source-layer) കൃത്യമായി നൽകേണ്ടതുണ്ട്. 
+                        // ഉദാഹരണത്തിന് 'parcel', 'plot', അല്ലെങ്കിൽ 'cadastral' ആയിരിക്കാം.
+                        'source-layer': 'plot', 
+                        'paint': {
+                            'line-color': '#FFFF00', // മഞ്ഞ നിറത്തിലുള്ള ബോർഡർ
+                            'line-width': 2
+                        }
+                    }
+                ]
+            }
+        });
+
+        // 3. ലൈവ് GPS ലൊക്കേഷൻ ട്രാക്കിംഗ് കോഡ്
+        var geolocate = new maplibregl.GeolocateControl({
+            positionOptions: {
+                enableHighAccuracy: true
+            },
+            trackUserLocation: true, // നിരന്തരം ലൊക്കേഷൻ ട്രാക്ക് ചെയ്യാൻ
+            showUserHeading: true    // ഫോൺ തിരിക്കുന്നതിനനുസരിച്ച് ദിശ കാണിക്കാൻ
+        });
+        
+        map.addControl(geolocate);
+
+        // മാപ്പ് ലോഡ് ആയിക്കഴിയുമ്പോൾ ഓട്ടോമാറ്റിക് ആയി GPS ലൊക്കേഷൻ കണ്ടെത്താൻ
+        map.on('load', function() {
+            geolocate.trigger();
+        });
+    </script>
+</body>
+</html>
