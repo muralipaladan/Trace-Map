@@ -1,1 +1,1 @@
-https://muralipaladan.github.io/Bhumi-Alavu/
+(https://muralipaladan.github.io/Entebhumi/)
